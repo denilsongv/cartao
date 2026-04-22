@@ -39,7 +39,6 @@ SCOPE = [
     "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/drive"
 ]
-creds = Credentials.from_service_account_file(CREDENTIALS_FILE, scopes=SCOPE)
 client = gspread.authorize(creds)
 SPREADSHEET_ID = "1oyZ3pLMa0BLGiJW9HafzUpSchY1xnauojLG47Hi2ZwI"
 sheet = client.open_by_key(SPREADSHEET_ID).worksheet("lancamentos")
