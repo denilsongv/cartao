@@ -5,10 +5,13 @@ import pandas as pd
 from datetime import datetime
 import uuid
 import re
-import os
 from dateutil.relativedelta import relativedelta
 
-# ------------------- CONFIGURAÇÃO DE CAMINHOS -------------------
+
+# ------------------- CONFIGURAÇÃO DA PÁGINA -------------------
+st.set_page_config(page_title="Controle de Cartões", layout="wide")
+
+
 # ------------------- CONEXÃO COM GOOGLE SHEETS VIA STREAMLIT SECRETS -------------------
 SCOPE = [
     "https://www.googleapis.com/auth/spreadsheets",
@@ -34,14 +37,6 @@ except Exception as e:
     st.error(f"Erro ao conectar com o Google Sheets: {e}")
     st.stop()
 
-# ------------------- CONEXÃO COM GOOGLE SHEETS -------------------
-SCOPE = [
-    "https://www.googleapis.com/auth/spreadsheets",
-    "https://www.googleapis.com/auth/drive"
-]
-client = gspread.authorize(creds)
-SPREADSHEET_ID = "1oyZ3pLMa0BLGiJW9HafzUpSchY1xnauojLG47Hi2ZwI"
-sheet = client.open_by_key(SPREADSHEET_ID).worksheet("lancamentos")
 
 # ------------------- FUNÇÕES AUXILIARES -------------------
 def formatar_data_exibicao(data_str):
@@ -49,6 +44,7 @@ def formatar_data_exibicao(data_str):
         return datetime.strptime(str(data_str).strip(), "%d/%m/%Y").strftime("%d-%m-%Y")
     except:
         return str(data_str).strip()
+
 
 def converter_data_para_armazenar(data_str):
     data_str = str(data_str).strip()
@@ -69,6 +65,7 @@ def converter_data_para_armazenar(data_str):
 
     return data_str
 
+
 def validar_data(data_str):
     if not re.match(r"^\d{2}-\d{2}-\d{4}$", str(data_str).strip()):
         return False
@@ -77,6 +74,7 @@ def validar_data(data_str):
         return True
     except:
         return False
+
 
 def validar_mes_competencia(mes_str):
     if not re.match(r"^\d{2}/\d{4}$", str(mes_str).strip()):
@@ -87,14 +85,17 @@ def validar_mes_competencia(mes_str):
     except:
         return False
 
+
 def formatar_moeda_br(valor):
     try:
         return f"R$ {float(valor):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
     except:
         return "R$ 0,00"
 
+
 def normalizar_booleano(v):
     return str(v).strip().lower() in ["true", "1", "sim", "yes"]
+
 
 def corrige_valor(v):
     """
@@ -117,38 +118,31 @@ def corrige_valor(v):
     if not v:
         return 0.0
 
-    # Remove moeda, espaços e caracteres estranhos
     v = v.replace("R$", "").replace(" ", "")
     v = re.sub(r"[^\d,.\-]", "", v)
 
-    # Se tiver vírgula e ponto
     if "," in v and "." in v:
         if v.rfind(",") > v.rfind("."):
-            # formato BR: 1.234,56
             v = v.replace(".", "")
             v = v.replace(",", ".")
         else:
-            # formato US: 1,234.56
             v = v.replace(",", "")
 
-    # Se tiver só vírgula
     elif "," in v:
         v = v.replace(",", ".")
 
-    # Se tiver só ponto
     elif "." in v:
         partes = v.split(".")
         if len(partes) > 2:
-            # ex: 1.234.567.89
             v = "".join(partes[:-1]) + "." + partes[-1]
         elif len(partes) == 2 and len(partes[1]) == 3:
-            # ex: 1.234 -> milhar
             v = "".join(partes)
 
     try:
         return round(float(v), 2)
     except:
         return 0.0
+
 
 def carregar_dados():
     try:
@@ -165,7 +159,6 @@ def carregar_dados():
 
         df = pd.DataFrame(dados)
 
-        # Garante colunas obrigatórias
         for col in colunas:
             if col not in df.columns:
                 if col == "valor":
@@ -177,7 +170,6 @@ def carregar_dados():
                 else:
                     df[col] = ""
 
-        # Corrige valor com robustez
         df["valor"] = df["valor"].apply(corrige_valor)
         df["valor"] = pd.to_numeric(df["valor"], errors="coerce").fillna(0.0).round(2)
 
@@ -207,6 +199,7 @@ def carregar_dados():
             "mes_competencia", "id", "conferido"
         ])
 
+
 def salvar_dados(df):
     try:
         sheet.clear()
@@ -220,24 +213,30 @@ def salvar_dados(df):
         if not df.empty:
             df = df.copy().fillna("")
 
-            # Garante tipos corretos antes de salvar
             df["valor"] = df["valor"].apply(corrige_valor).round(2)
-            df["parcelas_total"] = pd.to_numeric(df["parcelas_total"], errors="coerce").fillna(1).astype(int)
-            df["parcela_atual"] = pd.to_numeric(df["parcela_atual"], errors="coerce").fillna(1).astype(int)
-            df["conferido"] = df["conferido"].apply(lambda x: "TRUE" if normalizar_booleano(x) else "FALSE")
+            df["parcelas_total"] = pd.to_numeric(
+                df["parcelas_total"], errors="coerce"
+            ).fillna(1).astype(int)
+            df["parcela_atual"] = pd.to_numeric(
+                df["parcela_atual"], errors="coerce"
+            ).fillna(1).astype(int)
+            df["conferido"] = df["conferido"].apply(
+                lambda x: "TRUE" if normalizar_booleano(x) else "FALSE"
+            )
 
             df = df[colunas_ordem]
 
             dados = [df.columns.tolist()] + df.values.tolist()
             sheet.update(values=dados, range_name="A1")
         else:
-            sheet.update([colunas_ordem], "A1")
+            sheet.update(values=[colunas_ordem], range_name="A1")
 
         return True
 
     except Exception as e:
         st.error(f"Erro ao salvar dados: {e}")
         return False
+
 
 def adicionar_lancamentos(lancamentos):
     df = carregar_dados()
@@ -250,7 +249,9 @@ def adicionar_lancamentos(lancamentos):
     if salvar_dados(df):
         st.success("Lançamento(s) adicionado(s)!")
         return True
+
     return False
+
 
 def excluir_lancamento_por_id(id_lancamento):
     df = carregar_dados()
@@ -264,6 +265,7 @@ def excluir_lancamento_por_id(id_lancamento):
         st.warning(f"ID {id_lancamento} não encontrado.")
         return False
 
+
 # ------------------- LÓGICA DE PARCELAS -------------------
 def avancar_mes(mes_ano_str, num_meses):
     mes, ano = map(int, mes_ano_str.split("/"))
@@ -271,6 +273,7 @@ def avancar_mes(mes_ano_str, num_meses):
     novo_ano = ano + (novo_mes - 1) // 12
     novo_mes = ((novo_mes - 1) % 12) + 1
     return f"{novo_mes:02d}/{novo_ano}"
+
 
 def gerar_parcelas(data_compra, descricao, valor_total, bandeira, num_parcelas, mes_primeira_parcela):
     parcelas = []
@@ -299,9 +302,11 @@ def gerar_parcelas(data_compra, descricao, valor_total, bandeira, num_parcelas, 
             "id": id_unico,
             "conferido": False
         }
+
         parcelas.append(parcela)
 
     return parcelas
+
 
 def gerar_avista(data_compra, descricao, valor, bandeira, mes_competencia):
     return [{
@@ -316,9 +321,10 @@ def gerar_avista(data_compra, descricao, valor, bandeira, mes_competencia):
         "conferido": False
     }]
 
+
 # ------------------- INTERFACE STREAMLIT -------------------
-st.set_page_config(page_title="Controle de Cartões", layout="wide")
 st.title("💳 Controle de Compras no Cartão de Crédito")
+
 
 # Estados do filtro
 if "mes_filtro" not in st.session_state:
@@ -327,15 +333,22 @@ if "mes_filtro" not in st.session_state:
 if "bandeira_filtro" not in st.session_state:
     st.session_state["bandeira_filtro"] = "Todas"
 
+
 # Sidebar
 st.sidebar.header("🔍 Filtrar lançamentos")
-mes_filtro = st.sidebar.text_input("Mês/Ano (MM/AAAA)", value=st.session_state["mes_filtro"])
+
+mes_filtro = st.sidebar.text_input(
+    "Mês/Ano (MM/AAAA)",
+    value=st.session_state["mes_filtro"]
+)
+
+bandeiras = ["Todas", "Visa", "Elo", "Mastercard", "American Express", "Mercado Pago"]
+
 bandeira_filtro = st.sidebar.selectbox(
     "Bandeira",
-    ["Todas", "Visa", "Elo", "Mastercard", "American Express", "Mercado Pago"],
-    index=["Todas", "Visa", "Elo", "Mastercard", "American Express", "Mercado Pago"].index(
-        st.session_state["bandeira_filtro"]
-    ) if st.session_state["bandeira_filtro"] in ["Todas", "Visa", "Elo", "Mastercard", "American Express", "Mercado Pago"] else 0
+    bandeiras,
+    index=bandeiras.index(st.session_state["bandeira_filtro"])
+    if st.session_state["bandeira_filtro"] in bandeiras else 0
 )
 
 if st.sidebar.button("Filtrar"):
@@ -343,8 +356,10 @@ if st.sidebar.button("Filtrar"):
     st.session_state["bandeira_filtro"] = bandeira_filtro
     st.rerun()
 
+
 # Carrega dados
 df = carregar_dados()
+
 
 # Filtra
 if not df.empty:
@@ -364,8 +379,11 @@ if not df.empty:
         df_edit = df_filtrado.copy()
 
         df_edit["data_exibicao"] = df_edit["data"].apply(formatar_data_exibicao)
+
         df_edit["parcela"] = df_edit.apply(
-            lambda row: "única" if row["parcelas_total"] == 1 else f"{row['parcela_atual']}/{row['parcelas_total']}",
+            lambda row: "única"
+            if row["parcelas_total"] == 1
+            else f"{row['parcela_atual']}/{row['parcelas_total']}",
             axis=1
         )
 
@@ -377,6 +395,7 @@ if not df.empty:
         df_edit = df_edit.rename(columns={"data_exibicao": "data"})
 
         st.subheader("📋 Lançamentos do período")
+
         edited_df = st.data_editor(
             df_edit,
             use_container_width=True,
@@ -432,6 +451,7 @@ if not df.empty:
                     st.rerun()
 
         st.subheader("🗑️ Excluir lançamento")
+
         col1, col2 = st.columns([3, 1])
 
         with col1:
@@ -450,28 +470,42 @@ if not df.empty:
 else:
     st.info("Nenhum lançamento ainda. Adicione abaixo.")
 
+
 # ---------- FORMULÁRIO DE NOVO LANÇAMENTO ----------
 st.header("➕ Adicionar novo gasto")
 
 sugestoes_descricoes = [
     "gasolina", "supermercado", "lanche", "mercado livre", "shopee",
-    "sacolão", "pizza", "academia", "padaria", "uber", "óleo carro", "óleo moto", "Outro"
+    "sacolão", "pizza", "academia", "padaria", "uber",
+    "óleo carro", "óleo moto", "Outro"
 ]
 
+
+# Estados do formulário
 if "form_data_compra" not in st.session_state:
     st.session_state["form_data_compra"] = datetime.now().strftime("%d-%m-%Y")
+
 if "form_descricao" not in st.session_state:
     st.session_state["form_descricao"] = sugestoes_descricoes[0]
+
 if "form_descricao_outro" not in st.session_state:
     st.session_state["form_descricao_outro"] = ""
+
 if "form_valor" not in st.session_state:
     st.session_state["form_valor"] = 0.01
+
 if "form_bandeira" not in st.session_state:
     st.session_state["form_bandeira"] = "Visa"
+
 if "form_parcelas" not in st.session_state:
     st.session_state["form_parcelas"] = 1
+
 if "form_mes_primeira" not in st.session_state:
     st.session_state["form_mes_primeira"] = (datetime.now() + relativedelta(months=1)).strftime("%m/%Y")
+
+if "form_reset_key" not in st.session_state:
+    st.session_state["form_reset_key"] = 0
+
 
 def limpar_formulario():
     st.session_state["form_data_compra"] = datetime.now().strftime("%d-%m-%Y")
@@ -482,29 +516,37 @@ def limpar_formulario():
     st.session_state["form_parcelas"] = 1
     st.session_state["form_mes_primeira"] = (datetime.now() + relativedelta(months=1)).strftime("%m/%Y")
 
-with st.form("novo_lancamento", clear_on_submit=False):
+    # Força o Streamlit a recriar os campos do formulário
+    st.session_state["form_reset_key"] += 1
+
+
+reset_key = st.session_state["form_reset_key"]
+
+
+with st.form(f"novo_lancamento_{reset_key}", clear_on_submit=False):
     col1, col2 = st.columns(2)
 
     with col1:
         data_compra_str = st.text_input(
             "Data da compra (dd-mm-aaaa)",
             value=st.session_state["form_data_compra"],
-            key="data_compra_input"
+            key=f"data_compra_input_{reset_key}"
         )
 
         descricao_opcao = st.selectbox(
             "Descrição",
             sugestoes_descricoes,
             index=sugestoes_descricoes.index(st.session_state["form_descricao"]),
-            key="descricao_select"
+            key=f"descricao_select_{reset_key}"
         )
 
         descricao_outro = ""
+
         if descricao_opcao == "Outro":
             descricao_outro = st.text_input(
                 "Digite a descrição",
                 value=st.session_state["form_descricao_outro"],
-                key="descricao_outro_input"
+                key=f"descricao_outro_input_{reset_key}"
             )
 
         descricao_final = descricao_outro.strip() if descricao_opcao == "Outro" else descricao_opcao
@@ -515,7 +557,7 @@ with st.form("novo_lancamento", clear_on_submit=False):
             step=0.01,
             format="%.2f",
             value=float(st.session_state["form_valor"]),
-            key="valor_input"
+            key=f"valor_input_{reset_key}"
         )
 
         bandeira = st.selectbox(
@@ -524,7 +566,7 @@ with st.form("novo_lancamento", clear_on_submit=False):
             index=["Visa", "Elo", "Mastercard", "American Express", "Mercado Pago"].index(
                 st.session_state["form_bandeira"]
             ),
-            key="bandeira_select"
+            key=f"bandeira_select_{reset_key}"
         )
 
     with col2:
@@ -534,13 +576,13 @@ with st.form("novo_lancamento", clear_on_submit=False):
             max_value=24,
             value=int(st.session_state["form_parcelas"]),
             step=1,
-            key="parcelas_input"
+            key=f"parcelas_input_{reset_key}"
         )
 
         mes_primeira = st.text_input(
             "Mês da primeira parcela (MM/AAAA)",
             value=st.session_state["form_mes_primeira"],
-            key="mes_primeira_input"
+            key=f"mes_primeira_input_{reset_key}"
         )
 
     col_buttons = st.columns(2)
@@ -559,18 +601,22 @@ with st.form("novo_lancamento", clear_on_submit=False):
     st.session_state["form_parcelas"] = parcelas
     st.session_state["form_mes_primeira"] = mes_primeira
 
+
 if submitted:
     erro = False
 
     if not descricao_final:
         st.error("Descrição obrigatória.")
         erro = True
+
     elif corrige_valor(valor_total) <= 0:
         st.error("Valor deve ser maior que zero.")
         erro = True
+
     elif not validar_mes_competencia(mes_primeira):
         st.error("Mês da primeira parcela inválido. Use MM/AAAA.")
         erro = True
+
     elif not validar_data(data_compra_str):
         st.error("Data inválida. Use o formato dd-mm-aaaa (ex: 15-04-2026).")
         erro = True
@@ -600,13 +646,16 @@ if submitted:
             limpar_formulario()
             st.rerun()
 
+
 if limpar:
     limpar_formulario()
     st.rerun()
 
+
 # Sidebar com vencimentos
 st.sidebar.markdown("---")
 st.sidebar.subheader("📅 Vencimentos")
+
 vencimentos = {
     "Elo": "10",
     "American Express": "16",
