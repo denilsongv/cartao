@@ -472,30 +472,43 @@ else:
 
 
 # ---------- FORMULÁRIO DE NOVO LANÇAMENTO ----------
+
+
+
+# ---------- FORMULÁRIO DE NOVO LANÇAMENTO ----------
 st.header("➕ Adicionar novo gasto")
 
 sugestoes_descricoes = [
+    "Selecione...",
     "gasolina", "supermercado", "lanche", "mercado livre", "shopee",
     "sacolão", "pizza", "academia", "padaria", "uber",
     "óleo carro", "óleo moto", "Outro"
 ]
 
+bandeiras_form = [
+    "Selecione...",
+    "Visa",
+    "Elo",
+    "Mastercard",
+    "American Express",
+    "Mercado Pago"
+]
 
 # Estados do formulário
 if "form_data_compra" not in st.session_state:
     st.session_state["form_data_compra"] = datetime.now().strftime("%d-%m-%Y")
 
 if "form_descricao" not in st.session_state:
-    st.session_state["form_descricao"] = sugestoes_descricoes[0]
+    st.session_state["form_descricao"] = "Selecione..."
 
 if "form_descricao_outro" not in st.session_state:
     st.session_state["form_descricao_outro"] = ""
 
 if "form_valor" not in st.session_state:
-    st.session_state["form_valor"] = 0.01
+    st.session_state["form_valor"] = 0.0
 
 if "form_bandeira" not in st.session_state:
-    st.session_state["form_bandeira"] = "Visa"
+    st.session_state["form_bandeira"] = "Selecione..."
 
 if "form_parcelas" not in st.session_state:
     st.session_state["form_parcelas"] = 1
@@ -509,10 +522,10 @@ if "form_reset_key" not in st.session_state:
 
 def limpar_formulario():
     st.session_state["form_data_compra"] = datetime.now().strftime("%d-%m-%Y")
-    st.session_state["form_descricao"] = sugestoes_descricoes[0]
+    st.session_state["form_descricao"] = "Selecione..."
     st.session_state["form_descricao_outro"] = ""
-    st.session_state["form_valor"] = 0.01
-    st.session_state["form_bandeira"] = "Visa"
+    st.session_state["form_valor"] = 0.0
+    st.session_state["form_bandeira"] = "Selecione..."
     st.session_state["form_parcelas"] = 1
     st.session_state["form_mes_primeira"] = (datetime.now() + relativedelta(months=1)).strftime("%m/%Y")
 
@@ -549,11 +562,16 @@ with st.form(f"novo_lancamento_{reset_key}", clear_on_submit=False):
                 key=f"descricao_outro_input_{reset_key}"
             )
 
-        descricao_final = descricao_outro.strip() if descricao_opcao == "Outro" else descricao_opcao
+        if descricao_opcao == "Selecione...":
+            descricao_final = ""
+        elif descricao_opcao == "Outro":
+            descricao_final = descricao_outro.strip()
+        else:
+            descricao_final = descricao_opcao
 
         valor_total = st.number_input(
             "Valor total (R$)",
-            min_value=0.01,
+            min_value=0.0,
             step=0.01,
             format="%.2f",
             value=float(st.session_state["form_valor"]),
@@ -562,10 +580,8 @@ with st.form(f"novo_lancamento_{reset_key}", clear_on_submit=False):
 
         bandeira = st.selectbox(
             "Bandeira",
-            ["Visa", "Elo", "Mastercard", "American Express", "Mercado Pago"],
-            index=["Visa", "Elo", "Mastercard", "American Express", "Mercado Pago"].index(
-                st.session_state["form_bandeira"]
-            ),
+            bandeiras_form,
+            index=bandeiras_form.index(st.session_state["form_bandeira"]),
             key=f"bandeira_select_{reset_key}"
         )
 
@@ -606,7 +622,11 @@ if submitted:
     erro = False
 
     if not descricao_final:
-        st.error("Descrição obrigatória.")
+        st.error("Selecione ou digite uma descrição.")
+        erro = True
+
+    elif bandeira == "Selecione...":
+        st.error("Selecione a bandeira do cartão.")
         erro = True
 
     elif corrige_valor(valor_total) <= 0:
@@ -650,6 +670,10 @@ if submitted:
 if limpar:
     limpar_formulario()
     st.rerun()
+
+
+
+
 
 
 # Sidebar com vencimentos
